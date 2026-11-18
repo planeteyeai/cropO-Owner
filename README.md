@@ -17,12 +17,10 @@ npm install
 Copy `.env.example` to `.env` if needed:
 
 ```
-VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_API_BASE_URL=http://127.0.0.1:8001
 ```
 
-Use local runserver on **8000** for the Owner Portal right now (owner login verified). Docker **8001** currently redirects HTTP→HTTPS and breaks browser calls. Avoid ngrok unless `ALLOWED_HOSTS` includes the ngrok host and the tunnel targets the working backend.
-
-Ensure the backend allows your frontend origin (e.g. `http://localhost:5174`).
+Docker Django is on host **8001**. Ensure the backend allows your frontend origin (e.g. `http://localhost:5173`).
 
 ## Run
 

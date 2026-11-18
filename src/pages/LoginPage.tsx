@@ -23,7 +23,12 @@ export function LoginPage() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else if (err instanceof Error) {
-        setError(err.message);
+        const msg = err.message || '';
+        setError(
+          /failed to fetch|networkerror|load failed/i.test(msg)
+            ? 'Cannot reach http://127.0.0.1:8001 — check Docker'
+            : msg,
+        );
       } else {
         setError('Login failed. Please try again.');
       }

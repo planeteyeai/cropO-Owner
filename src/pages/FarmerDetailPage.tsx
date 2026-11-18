@@ -32,6 +32,11 @@ import {
   findCachedListFarmer,
   reportCacheKey,
 } from '../utils/localCache';
+import {
+  hasApiValue,
+  mergeManagerDashboard,
+  sectionHasData,
+} from '../utils/mergeManagerReport';
 import { matchFarmerPlot } from '../utils/plotTiles';
 
 type LocationState = { farmer?: Farmer };
@@ -281,16 +286,77 @@ function PlotReport({
   const crop = plot.crop_details;
   const forecast = Array.isArray(report?.forecast) ? report.forecast.slice(0, 5) : [];
 
+  const cropLabel = [crop?.crop_type, crop?.crop_variety].filter(Boolean).join(' · ');
+  const showGrowth = sectionHasData(
+    growth?.healthy_pixel_percentage,
+    growth?.moderate_pixel_percentage,
+    growth?.weak_pixel_percentage,
+    growth?.stress_pixel_percentage,
+    report?.growth?.latest_image_date,
+  );
+  const showMoisture = sectionHasData(
+    moisture?.excellent_pixel_percentage,
+    moisture?.adequate_pixel_percentage,
+    moisture?.less_pixel_percentage,
+    moisture?.excess_pixel_percentage,
+    irrigation?.final_soil_moisture_capped,
+  );
+  const showWater = sectionHasData(
+    water?.very_healthy_pixel_percentage,
+    water?.excellent_pixel_percentage,
+    water?.adequat_pixel_percentage,
+    water?.less_pixel_percentage,
+    water?.deficient_pixel_percentage,
+  );
+  const showPest = sectionHasData(
+    pest?.healthy_pixel_count,
+    pest?.chewing_affected_pixel_percentage,
+    pest?.fungi_affected_pixel_percentage,
+    pest?.sucking_affected_pixel_percentage,
+    pest?.wilt_affected_pixel_percentage,
+  );
+  const showNpk = sectionHasData(npk?.fertilizer_require_perAcre, npk?.soil_statistics, agro?.soil);
+  const showWeather = sectionHasData(weather);
+  const metrics = [
+    agro?.area_acres != null
+      ? { label: 'Area', value: `${formatNum(agro.area_acres)} ac`, hint: 'Plot size' }
+      : null,
+    agro?.days_to_harvest != null
+      ? { label: 'Days to harvest', value: String(agro.days_to_harvest), hint: 'From report' }
+      : null,
+    crop?.plantation_date || agro?.plantation_date
+      ? {
+          label: 'Plantation',
+          value: String(crop?.plantation_date || agro?.plantation_date),
+          hint: agro?.plantation_type || 'Date',
+        }
+      : null,
+    irrigation?.final_soil_moisture_capped != null
+      ? {
+          label: 'Soil moisture',
+          value: `${formatNum(irrigation.final_soil_moisture_capped)}%`,
+          hint: 'Final capped',
+        }
+      : null,
+    growth?.healthy_pixel_percentage != null
+      ? {
+          label: 'Healthy growth',
+          value: formatPct(growth.healthy_pixel_percentage),
+          hint: 'NDVI pixels',
+        }
+      : null,
+    agro?.biomass?.mean != null
+      ? { label: 'Biomass', value: formatNum(agro.biomass.mean), hint: 'Mean' }
+      : null,
+  ].filter((m): m is { label: string; value: string; hint: string } => m != null);
+
   return (
     <div className="plot-report fade-in">
       <div className="plot-hero-card">
         <div className="plot-hero-main">
           <p className="dash-eyebrow">Selected plot</p>
-          <h2>Plot {plot.plot_name || '—'}</h2>
-          <p className="plot-hero-sub">
-            {[crop?.crop_type, crop?.crop_variety].filter(Boolean).join(' · ') ||
-              'Crop details unavailable'}
-          </p>
+          <h2>Plot {plot.plot_name}</h2>
+          {cropLabel ? <p className="plot-hero-sub">{cropLabel}</p> : null}
           <div className="chip-row">
             {crop?.irrigation_type ? <span className="soft-chip">{crop.irrigation_type}</span> : null}
             {agro?.current_growth_stage ? (
@@ -301,159 +367,162 @@ function PlotReport({
             ) : null}
           </div>
         </div>
-        <div className={`score-badge ${scoreClass(score)}`}>
-          <span className="score-num">{score != null ? formatNum(score, 0) : '—'}</span>
-          <span className="score-lbl">Field score</span>
-        </div>
+        {score != null ? (
+          <div className={`score-badge ${scoreClass(score)}`}>
+            <span className="score-num">{formatNum(score, 0)}</span>
+            <span className="score-lbl">Field score</span>
+          </div>
+        ) : null}
       </div>
 
       <PlotTileMap plot={plot} farmerPlot={farmerPlot} />
 
-      <div className="metric-grid">
-        <MetricCard
-          label="Area"
-          value={agro?.area_acres != null ? `${formatNum(agro.area_acres)} ac` : '—'}
-          hint="Plot size"
-        />
-        <MetricCard
-          label="Days to harvest"
-          value={agro?.days_to_harvest != null ? String(agro.days_to_harvest) : '—'}
-          hint="From report"
-        />
-        <MetricCard
-          label="Plantation"
-          value={crop?.plantation_date || agro?.plantation_date || '—'}
-          hint={agro?.plantation_type || 'Date'}
-        />
-        <MetricCard
-          label="Soil moisture"
-          value={
-            irrigation?.final_soil_moisture_capped != null
-              ? `${formatNum(irrigation.final_soil_moisture_capped)}%`
-              : '—'
-          }
-          hint="Final capped"
-        />
-        <MetricCard
-          label="Healthy growth"
-          value={formatPct(growth?.healthy_pixel_percentage)}
-          hint="NDVI pixels"
-        />
-        <MetricCard
-          label="Biomass"
-          value={agro?.biomass?.mean != null ? formatNum(agro.biomass.mean) : '—'}
-          hint="Mean"
-        />
-      </div>
+      {metrics.length > 0 ? (
+        <div className="metric-grid">
+          {metrics.map((m) => (
+            <MetricCard key={m.label} label={m.label} value={m.value} hint={m.hint} />
+          ))}
+        </div>
+      ) : null}
 
       <div className="detail-panels">
-        <InfoCard title="Crop growth" tone="growth">
-          <ProgressRow label="Healthy" value={growth?.healthy_pixel_percentage} />
-          <ProgressRow label="Moderate" value={growth?.moderate_pixel_percentage} />
-          <ProgressRow label="Weak" value={growth?.weak_pixel_percentage} />
-          <ProgressRow label="Stress" value={growth?.stress_pixel_percentage} />
-          {report?.growth?.latest_image_date ? (
-            <Kv label="Image date" value={report.growth.latest_image_date} />
-          ) : null}
-        </InfoCard>
+        {showGrowth ? (
+          <InfoCard title="Crop growth" tone="growth">
+            <ProgressRow label="Healthy" value={growth?.healthy_pixel_percentage} />
+            <ProgressRow label="Moderate" value={growth?.moderate_pixel_percentage} />
+            <ProgressRow label="Weak" value={growth?.weak_pixel_percentage} />
+            <ProgressRow label="Stress" value={growth?.stress_pixel_percentage} />
+            {report?.growth?.latest_image_date ? (
+              <Kv label="Image date" value={report.growth.latest_image_date} />
+            ) : null}
+          </InfoCard>
+        ) : null}
 
-        <InfoCard title="Soil moisture" tone="moisture">
-          <ProgressRow label="Excellent" value={moisture?.excellent_pixel_percentage} />
-          <ProgressRow label="Adequate" value={moisture?.adequate_pixel_percentage} />
-          <ProgressRow label="Less" value={moisture?.less_pixel_percentage} />
-          <ProgressRow label="Excess" value={moisture?.excess_pixel_percentage} />
-          {irrigation?.final_soil_moisture_capped != null ? (
-            <Kv
-              label="Final moisture"
-              value={`${formatNum(irrigation.final_soil_moisture_capped)}%`}
-            />
-          ) : null}
-        </InfoCard>
+        {showMoisture ? (
+          <InfoCard title="Soil moisture" tone="moisture">
+            <ProgressRow label="Excellent" value={moisture?.excellent_pixel_percentage} />
+            <ProgressRow label="Adequate" value={moisture?.adequate_pixel_percentage} />
+            <ProgressRow label="Less" value={moisture?.less_pixel_percentage} />
+            <ProgressRow label="Excess" value={moisture?.excess_pixel_percentage} />
+            {irrigation?.final_soil_moisture_capped != null ? (
+              <Kv
+                label="Final moisture"
+                value={`${formatNum(irrigation.final_soil_moisture_capped)}%`}
+              />
+            ) : null}
+          </InfoCard>
+        ) : null}
 
-        <InfoCard title="Water uptake" tone="water">
-          <ProgressRow label="Very healthy" value={water?.very_healthy_pixel_percentage} />
-          <ProgressRow label="Excellent" value={water?.excellent_pixel_percentage} />
-          <ProgressRow label="Adequate" value={water?.adequat_pixel_percentage} />
-          <ProgressRow label="Less" value={water?.less_pixel_percentage} />
-          <ProgressRow label="Deficient" value={water?.deficient_pixel_percentage} />
-        </InfoCard>
+        {showWater ? (
+          <InfoCard title="Water uptake" tone="water">
+            <ProgressRow label="Very healthy" value={water?.very_healthy_pixel_percentage} />
+            <ProgressRow label="Excellent" value={water?.excellent_pixel_percentage} />
+            <ProgressRow label="Adequate" value={water?.adequat_pixel_percentage} />
+            <ProgressRow label="Less" value={water?.less_pixel_percentage} />
+            <ProgressRow label="Deficient" value={water?.deficient_pixel_percentage} />
+          </InfoCard>
+        ) : null}
 
-        <InfoCard title="Pest status" tone="pest">
-          {pest?.healthy_pixel_count != null ? (
-            <Kv label="Healthy pixels" value={String(pest.healthy_pixel_count)} />
-          ) : null}
-          <ProgressRow label="Chewing" value={pest?.chewing_affected_pixel_percentage} />
-          <ProgressRow label="Fungi" value={pest?.fungi_affected_pixel_percentage} />
-          <ProgressRow label="Sucking" value={pest?.sucking_affected_pixel_percentage} />
-          <ProgressRow label="Wilt" value={pest?.wilt_affected_pixel_percentage} />
-        </InfoCard>
+        {showPest ? (
+          <InfoCard title="Pest status" tone="pest">
+            {pest?.healthy_pixel_count != null ? (
+              <Kv label="Healthy pixels" value={String(pest.healthy_pixel_count)} />
+            ) : null}
+            <ProgressRow label="Chewing" value={pest?.chewing_affected_pixel_percentage} />
+            <ProgressRow label="Fungi" value={pest?.fungi_affected_pixel_percentage} />
+            <ProgressRow label="Sucking" value={pest?.sucking_affected_pixel_percentage} />
+            <ProgressRow label="Wilt" value={pest?.wilt_affected_pixel_percentage} />
+          </InfoCard>
+        ) : null}
 
-        <InfoCard title="Fertilizer (per acre)" tone="fertilizer">
-          <div className="npk-row">
-            <div className="npk-pill">
-              <span>N</span>
-              <strong>{formatNum(npk?.fertilizer_require_perAcre?.N)}</strong>
+        {showNpk ? (
+          <InfoCard title="Fertilizer (per acre)" tone="fertilizer">
+            {hasApiValue(npk?.fertilizer_require_perAcre) ? (
+              <div className="npk-row">
+                {npk?.fertilizer_require_perAcre?.N != null ? (
+                  <div className="npk-pill">
+                    <span>N</span>
+                    <strong>{formatNum(npk.fertilizer_require_perAcre.N)}</strong>
+                  </div>
+                ) : null}
+                {npk?.fertilizer_require_perAcre?.P != null ? (
+                  <div className="npk-pill">
+                    <span>P</span>
+                    <strong>{formatNum(npk.fertilizer_require_perAcre.P)}</strong>
+                  </div>
+                ) : null}
+                {npk?.fertilizer_require_perAcre?.K != null ? (
+                  <div className="npk-pill">
+                    <span>K</span>
+                    <strong>{formatNum(npk.fertilizer_require_perAcre.K)}</strong>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {npk?.soil_statistics?.phh2o != null || agro?.soil?.phh2o != null ? (
+              <Kv label="Soil pH" value={formatNum(npk?.soil_statistics?.phh2o ?? agro?.soil?.phh2o)} />
+            ) : null}
+            {npk?.soil_statistics?.soil_organic_carbon != null ? (
+              <Kv
+                label="Organic carbon"
+                value={formatNum(npk.soil_statistics.soil_organic_carbon)}
+              />
+            ) : null}
+            {npk?.soil_statistics?.total_nitrogen != null ? (
+              <Kv label="Soil N" value={formatNum(npk.soil_statistics.total_nitrogen)} />
+            ) : null}
+            {npk?.soil_statistics?.phosphorus != null ? (
+              <Kv label="Soil P" value={formatNum(npk.soil_statistics.phosphorus)} />
+            ) : null}
+            {npk?.soil_statistics?.potassium != null ? (
+              <Kv label="Soil K" value={formatNum(npk.soil_statistics.potassium)} />
+            ) : null}
+          </InfoCard>
+        ) : null}
+
+        {showWeather ? (
+          <InfoCard title="Weather now" tone="weather">
+            <div className="weather-hero">
+              {weather?.temperature_c != null ? (
+                <span className="weather-temp">{weather.temperature_c}°</span>
+              ) : null}
+              {weather?.location ? (
+                <span className="weather-place">{weather.location}</span>
+              ) : null}
             </div>
-            <div className="npk-pill">
-              <span>P</span>
-              <strong>{formatNum(npk?.fertilizer_require_perAcre?.P)}</strong>
-            </div>
-            <div className="npk-pill">
-              <span>K</span>
-              <strong>{formatNum(npk?.fertilizer_require_perAcre?.K)}</strong>
-            </div>
-          </div>
-          <Kv
-            label="Soil pH"
-            value={formatNum(npk?.soil_statistics?.phh2o ?? agro?.soil?.phh2o)}
-          />
-          <Kv
-            label="Organic carbon"
-            value={formatNum(npk?.soil_statistics?.soil_organic_carbon)}
-          />
-          <Kv label="Soil N" value={formatNum(npk?.soil_statistics?.total_nitrogen)} />
-          <Kv label="Soil P" value={formatNum(npk?.soil_statistics?.phosphorus)} />
-          <Kv label="Soil K" value={formatNum(npk?.soil_statistics?.potassium)} />
-        </InfoCard>
-
-        <InfoCard title="Weather now" tone="weather">
-          <div className="weather-hero">
-            <span className="weather-temp">
-              {weather?.temperature_c != null ? `${weather.temperature_c}°` : '—'}
-            </span>
-            <span className="weather-place">{weather?.location || '—'}</span>
-          </div>
-          <Kv
-            label="Humidity"
-            value={weather?.humidity != null ? `${weather.humidity}%` : '—'}
-          />
-          <Kv
-            label="Wind"
-            value={weather?.wind_kph != null ? `${weather.wind_kph} km/h` : '—'}
-          />
-          <Kv
-            label="Rain"
-            value={weather?.precip_mm != null ? `${weather.precip_mm} mm` : '—'}
-          />
-          <Kv label="Updated" value={weather?.localtime || '—'} />
-        </InfoCard>
+            {weather?.humidity != null ? (
+              <Kv label="Humidity" value={`${weather.humidity}%`} />
+            ) : null}
+            {weather?.wind_kph != null ? (
+              <Kv label="Wind" value={`${weather.wind_kph} km/h`} />
+            ) : null}
+            {weather?.precip_mm != null ? (
+              <Kv label="Rain" value={`${weather.precip_mm} mm`} />
+            ) : null}
+            {weather?.localtime ? <Kv label="Updated" value={weather.localtime} /> : null}
+          </InfoCard>
+        ) : null}
       </div>
 
       {forecast.length > 0 && (
         <section className="forecast-section">
           <h3 className="section-title">5-day forecast</h3>
           <div className="forecast-grid">
-            {forecast.map((d, i) => (
-              <article key={d?.date ?? `forecast-${i}`} className="forecast-card">
-                <p className="forecast-date">{d?.date || '—'}</p>
-                <p className="forecast-max">{d?.temperature_max || '—'}</p>
-                <p className="forecast-min">Min {d?.temperature_min || '—'}</p>
-                <div className="forecast-meta">
-                  <span>{d?.precipitation || '—'}</span>
-                  <span>{d?.wind_speed_max || '—'}</span>
-                </div>
-              </article>
-            ))}
+            {forecast
+              .filter((d) => Boolean(d?.date))
+              .map((d) => (
+                <article key={d.date} className="forecast-card">
+                  <p className="forecast-date">{d.date}</p>
+                  {d.temperature_max ? <p className="forecast-max">{d.temperature_max}</p> : null}
+                  {d.temperature_min ? (
+                    <p className="forecast-min">Min {d.temperature_min}</p>
+                  ) : null}
+                  <div className="forecast-meta">
+                    {d.precipitation ? <span>{d.precipitation}</span> : null}
+                    {d.wind_speed_max ? <span>{d.wind_speed_max}</span> : null}
+                  </div>
+                </article>
+              ))}
           </div>
         </section>
       )}
@@ -495,28 +564,67 @@ export function FarmerDetailPage() {
 
     const isCurrent = () => !cancelled && loadGenRef.current === loadGen;
 
-    function applyReport(
+    /**
+     * Merge new FastAPI data into previous: keep old section/plot values until
+     * new values for that piece arrive. Apply plots one-by-one so UI updates
+     * progressively without blanking the page.
+     */
+    async function applyReport(
       report: ManagerDashboardResponse,
-      opts?: { persistMobile?: string },
-    ): void {
+      opts?: { persistMobile?: string; replaceMissingPlots?: boolean },
+    ): Promise<void> {
       if (!isCurrent()) return;
-      setDashboard(report);
+      const replaceMissing = Boolean(opts?.replaceMissingPlots ?? hardRefresh);
+      const plots = (report.plots ?? []).filter((p) => p?.plot_name);
+      let lastMerged: ManagerDashboardResponse | null = null;
+
+      if (plots.length <= 1) {
+        setDashboard((prev) => {
+          lastMerged = mergeManagerDashboard(prev, report, {
+            replaceMissingPlots: replaceMissing,
+          });
+          return lastMerged;
+        });
+      } else {
+        // Progressive plot-by-plot merge (frontend-only; still one API response)
+        for (let i = 0; i < plots.length; i++) {
+          if (!isCurrent()) return;
+          const isLast = i === plots.length - 1;
+          const partial: ManagerDashboardResponse = {
+            ...report,
+            plots: isLast ? plots : plots.slice(0, i + 1),
+            plots_count: report.plots_count || plots.length,
+          };
+          setDashboard((prev) => {
+            lastMerged = mergeManagerDashboard(prev, partial, {
+              replaceMissingPlots: isLast ? replaceMissing : false,
+            });
+            return lastMerged;
+          });
+          if (!isLast) {
+            await new Promise((r) => window.setTimeout(r, 48));
+          }
+        }
+      }
+
+      if (!isCurrent()) return;
       setSelectedPlot((prev) => {
-        if (prev && report.plots?.some((p) => p.plot_name === prev)) return prev;
-        return report.plots?.[0]?.plot_name ?? prev;
+        if (prev && plots.some((p) => p.plot_name === prev)) return prev;
+        return plots[0]?.plot_name ?? prev;
       });
       setReportError(null);
+      const toCache = lastMerged ?? report;
       if (opts?.persistMobile) {
-        cacheSet(reportCacheKey(opts.persistMobile), report, CACHE_TTL.report);
+        cacheSet(reportCacheKey(opts.persistMobile), toCache, CACHE_TTL.report);
       }
     }
 
-    /** Paint previous report and keep it until a successful refetch replaces it. */
+    /** Paint previous report and keep it until a successful refetch merges new data. */
     function paintPreviousReport(
       report: ManagerDashboardResponse | null | undefined,
     ): boolean {
       if (!report || !isCurrent()) return false;
-      setDashboard(report);
+      setDashboard((prev) => mergeManagerDashboard(prev, report, { replaceMissingPlots: false }));
       setReportError(null);
       setSelectedPlot((prev) => {
         if (prev && report.plots?.some((p) => p.plot_name === prev)) return prev;
@@ -641,7 +749,10 @@ export function FarmerDetailPage() {
 
           const reportOk = reportResult ? safeReport(reportResult) : null;
           if (reportOk) {
-            applyReport(reportOk, { persistMobile: seedMobile });
+            await applyReport(reportOk, {
+              persistMobile: seedMobile,
+              replaceMissingPlots: hardRefresh,
+            });
           } else if (needReportFetch && reportResult && !reportOk) {
             // Keep previous dashboard — only warn if we had nothing to show
             if (!cachedReport) {
@@ -756,7 +867,10 @@ export function FarmerDetailPage() {
           }
           return;
         }
-        applyReport(reportOk, { persistMobile: mobile });
+        await applyReport(reportOk, {
+          persistMobile: mobile,
+          replaceMissingPlots: hardRefresh,
+        });
       } catch (err) {
         if (!isCurrent()) return;
         // Keep previous report on screen; only surface error when nothing was shown
@@ -900,10 +1014,10 @@ export function FarmerDetailPage() {
           <p>{hasReportPlots ? 'Updating field report in background…' : 'Loading field report…'}</p>
           <span>
             {hasReportPlots
-              ? 'Previous report stays visible until the new FastAPI data is ready'
+              ? 'Keeping previous values — updating each plot/section when new API data arrives'
               : djangoPlots.length
-                ? 'Showing registered plots now — growth, moisture, water, pest & tiles load next'
-                : 'Profile is ready — fetching growth, moisture, water, pest & tiles'}
+                ? 'Showing registered plots now — field report sections fill in from the API'
+                : 'Profile is ready — fetching field report from the API'}
           </span>
         </div>
       )}
@@ -934,9 +1048,7 @@ export function FarmerDetailPage() {
                       <LoadingSpinner label="Refreshing field report" />
                     ) : score != null ? (
                       formatNum(score, 0)
-                    ) : (
-                      '—'
-                    )}
+                    ) : null}
                   </span>
                 </button>
               );

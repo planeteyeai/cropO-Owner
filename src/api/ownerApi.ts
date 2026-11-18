@@ -7,10 +7,30 @@ import type {
 } from '../types/owner';
 import type { ShipmentListItem, ShipmentListResponse, ShipmentRecordType } from '../types/shipment';
 
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ||
-  'http://127.0.0.1:8000';
+/** Local Docker Django — always http on 8001 (never https://127.0.0.1, never :8000). */
+const LOCAL_API_BASE = 'http://127.0.0.1:8001';
 
+function resolveApiBase(): string {
+  const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || '';
+  let base = raw.replace(/\/$/, '') || LOCAL_API_BASE;
+
+  // Guard against misconfigured local HTTPS / wrong port that cause "Failed to fetch"
+  try {
+    const u = new URL(base);
+    const host = u.hostname;
+    if (host === '127.0.0.1' || host === 'localhost') {
+      u.protocol = 'http:';
+      if (u.port === '8000' || u.port === '') u.port = '8001';
+      base = u.origin;
+    }
+  } catch {
+    base = LOCAL_API_BASE;
+  }
+
+  return base;
+}
+
+const API_BASE = resolveApiBase();
 const FARMERS_BASE = `${API_BASE}/api/farmers`;
 const IS_NGROK = /ngrok/i.test(API_BASE);
 
@@ -95,10 +115,23 @@ async function request<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${FARMERS_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  const url = `${FARMERS_BASE}${path}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/failed to fetch|networkerror|load failed|abort/i.test(msg)) {
+      throw new ApiError(
+        `Cannot reach ${API_BASE} — check Docker`,
+        0,
+      );
+    }
+    throw new ApiError(msg || `Cannot reach ${API_BASE} — check Docker`, 0);
+  }
 
   const body = await parseJson(res);
 
