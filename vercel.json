@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
@@ -8,10 +7,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "env": {
-    "VITE_API_BASE_URL": "@vite_api_base_url",
-    "VITE_FASTAPI_BASE_URL": "@vite_fastapi_base_url",
-    "VITE_FASTAPI_BEARER_TOKEN": "@vite_fastapi_bearer_token"
-  }
+  ]
 }
