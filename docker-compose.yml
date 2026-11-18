@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:8001}
+        VITE_FASTAPI_BASE_URL: ${VITE_FASTAPI_BASE_URL:-https://cropoappapis.up.railway.app}
+        VITE_FASTAPI_BEARER_TOKEN: ${VITE_FASTAPI_BEARER_TOKEN:-your-token-here}
+    container_name: cropo-owner-frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      - cropo-network
+
+networks:
+  cropo-network:
+    driver: bridge

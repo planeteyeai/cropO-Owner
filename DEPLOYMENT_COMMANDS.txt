@@ -1,0 +1,116 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                     CROPO OWNER - DEPLOYMENT COMMANDS                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📍 Location: /home/sid/Cropo_owner/cropO-Owner
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 METHOD 1: VERCEL DEPLOYMENT (RECOMMENDED)
+
+  Step 1: Install Vercel CLI
+    npm install -g vercel
+
+  Step 2: Login
+    vercel login
+
+  Step 3: Deploy (Easy Way)
+    ./deploy-vercel.sh
+    
+  Step 4: Or deploy manually
+    vercel              (for preview)
+    vercel --prod       (for production)
+
+  Step 5: Set environment variables in Vercel Dashboard
+    - VITE_API_BASE_URL
+    - VITE_FASTAPI_BASE_URL
+    - VITE_FASTAPI_BEARER_TOKEN
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐳 METHOD 2: DOCKER DEPLOYMENT
+
+  Step 1: Create environment file
+    cp .env.example .env
+    nano .env    # Edit with your production values
+
+  Step 2: Deploy (Easy Way)
+    ./deploy-docker.sh
+
+  Step 3: Or build manually
+    docker build -t cropo-owner \
+      --build-arg VITE_API_BASE_URL=http://127.0.0.1:8001 \
+      --build-arg VITE_FASTAPI_BASE_URL=https://cropoappapis.up.railway.app \
+      --build-arg VITE_FASTAPI_BEARER_TOKEN=your-token \
+      .
+
+  Step 4: Run container
+    docker run -d -p 3000:80 --name cropo-owner-app cropo-owner
+
+  Step 5: Access app
+    http://localhost:3000
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎼 METHOD 3: DOCKER COMPOSE
+
+  Step 1: Create environment file
+    cp .env.example .env
+    nano .env    # Edit with your production values
+
+  Step 2: Start services
+    docker-compose up -d
+
+  Step 3: View logs
+    docker-compose logs -f
+
+  Step 4: Stop services
+    docker-compose down
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 USEFUL DOCKER COMMANDS
+
+  View running containers:     docker ps
+  View logs:                   docker logs cropo-owner-app
+  Stop container:              docker stop cropo-owner-app
+  Start container:             docker start cropo-owner-app
+  Remove container:            docker rm -f cropo-owner-app
+  Remove image:                docker rmi cropo-owner
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 USEFUL VERCEL COMMANDS
+
+  Deploy to preview:           vercel
+  Deploy to production:        vercel --prod
+  View logs:                   vercel logs
+  List deployments:            vercel ls
+  Add env variable:            vercel env add VARIABLE_NAME
+  Check who's logged in:       vercel whoami
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 ENVIRONMENT VARIABLES REQUIRED
+
+  VITE_API_BASE_URL            - Your Django API production URL
+  VITE_FASTAPI_BASE_URL        - https://cropoappapis.up.railway.app
+  VITE_FASTAPI_BEARER_TOKEN    - Your FastAPI authentication token
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION FILES
+
+  QUICKSTART.md           - Quick deployment reference
+  DEPLOYMENT.md           - Complete deployment guide  
+  DEPLOYMENT_SUMMARY.md   - Overview and troubleshooting
+  README.md               - Project documentation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ QUICK START
+
+  For Vercel:    ./deploy-vercel.sh
+  For Docker:    ./deploy-docker.sh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
